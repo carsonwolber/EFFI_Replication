@@ -37,38 +37,40 @@ end
 
 %{
 function to perform a panel-data regression on the relationship between 
-forecasters predictions of the CPI at horizon h+1 on horizon h. 
+forecasters predictions of the CPI at horizon h+1 on horizon h. Where CPI 
+data at each horizon is given by the table [data] parameter
 
-Intuitively,this function is interested in finding how much
+Intuitively,this function is interested in finding how a forecasters
+prediction at period h is effecting their later prediction at period h+1. 
+Where h is in [1,5]. 
+
+This function returns a struct containing data on the 
+slope of the coefficient for "persistence", the R^2, and the Driscoll-Kraay
+90% confidence interval thresholds, for each h. 
 %}
 function horizonPersistRegData = runHorizonPersistReg(data)
     forecastColumns = {'CPI1', 'CPI2', 'CPI3', 'CPI4', 'CPI5', 'CPI6'};
     results = struct();
-
+    
     for h = 1:5
         X = [ones(size(data, 1), 1), data.(forecastColumns{h})];
         Y = data.(forecastColumns{h+1});
+        regress = fitlm(X,Y);
+        disp(regress.Coefficients);
         
-        beta = (X'*X)\(X'*Y);
+    
         
-        alpha = 0.1;
-        [ciLower, ciUpper] = driscollKraay(X, Y, data.timeIndex, alpha);
-        
-        SST = sum((Y - mean(Y)).^2);
-        SSR = sum((X*beta - mean(Y)).^2);
-        rSquared = SSR / SST;
-        
-        % Store results
         results(h).horizon = h;
-        results(h).beta = beta(2);
-        results(h).ciLower = ciLower(2);
-        results(h).ciUpper = ciUpper(2);
-        results(h).rSquared = rSquared;
+        results(h).beta = regress.Coefficients.Estimate(2);
+        results(h).rsqred =
     end
-
+    
     horizonPersistRegData = results;
 end
 
-
 IndivCpiSpfData = cleanIndivCpiSpf("data/Individual_CPI.xlsx");
 IndivCpiSpfRegData = runHorizonPersistReg(IndivCpiSpfData);
+
+
+
+

@@ -51,42 +51,27 @@ slope of the coefficient for "persistence", the R^2, and the Driscoll-Kraay
 function horizonPersistRegData = runHorizonPersistReg(data)
     forecastColumns = {'CPI1', 'CPI2', 'CPI3', 'CPI4', 'CPI5', 'CPI6'};
     results = struct();
-
+    
     for h = 1:5
         X = [ones(size(data, 1), 1), data.(forecastColumns{h})];
         Y = data.(forecastColumns{h+1});
+        regress = fitlm(X,Y);
+
+        disp(regress.Coefficients)
         
-        beta = (X'*X)\(X'*Y);
-        
-        alpha = 0.1;
-        dkData= driscollKraay(X, Y, alpha);
-        
-        SST = sum((Y - mean(Y)).^2);
-        SSR = sum((X*beta - mean(Y)).^2);
-        rSquared = SSR / SST;
+    
         
         results(h).horizon = h;
-        results(h).beta = beta(2);
-        % results(h).ciLower = ciLower(2);
-        % results(h).ciUpper = ciUpper(2);
-        results(h).rSquared = rSquared;
+        results(h).beta = regress.Coefficients.Estimate(3);
+        results(h).rsqred = regress.Rsquared.Ordinary;
     end
-
+    
     horizonPersistRegData = results;
-end
-
-
-%{
-function that returns a numeric value for the standard error of a
-regression using the method introduction by Driscoll and Kraay in 1998. 
-%}
-function DiscrollKraayStdErr = driscollKraay(X, Y, alpha)
-%TODO: write this function
-
 end
 
 IndivCpiSpfData = cleanIndivCpiSpf("data/Individual_CPI.xlsx");
 IndivCpiSpfRegData = runHorizonPersistReg(IndivCpiSpfData);
+
 
 
 
