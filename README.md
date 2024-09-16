@@ -1,3 +1,3 @@
 # About
 
-This repository is the tentative home for my work replication of the results of the paper "Expectations Formation and Forward Information" 
+This repository is the tentative home for my work replicating the results of "Expectations Formation and Forward Information" by Nathan Goldstein and Yuriy Gorodnichenko
