@@ -32,6 +32,9 @@ function cleanedIndividualCPI = cleanIndivCpiSpf(file)
     timeIndex = (data.YEAR - 1981) * 4 + data.QUARTER - 2;
     data.timeIndex = timeIndex;
     
+    % decade indicator for 1980s-2010s
+    data.decade = floor((data.YEAR - 1980) / 10) + 1;
+    
     cleanedIndividualCPI = data;
 end
 
@@ -51,27 +54,152 @@ slope of the coefficient for "persistence", the R^2, and the Driscoll-Kraay
 function horizonPersistRegData = runHorizonPersistReg(data)
     forecastColumns = {'CPI1', 'CPI2', 'CPI3', 'CPI4', 'CPI5', 'CPI6'};
     results = struct();
-    
-    for h = 1:5
-        X = [ones(size(data, 1), 1), data.(forecastColumns{h})];
-        Y = data.(forecastColumns{h+1});
-        regress = fitlm(X,Y);
 
-        disp(regress.Coefficients)
+    for h = 1:5
+        Y = data.(forecastColumns{h+1});
+        X = [ones(size(data, 1), 1), data.(forecastColumns{h})];
         
-    
+        beta = (X' * X) \ (X' * Y);
+        
+        residuals = Y - X * beta;
+        
+        stdErr = driscollKraay(X, residuals, data.timeIndex);
+        
+        criticalValue = 2.96;
+        CI_lower = beta(2) - criticalValue * stdErr(2);
+        CI_upper = beta(2) + criticalValue * stdErr(2);
+        
+        SST = sum((Y - mean(Y)).^2);
+        SSR = sum((X * beta - mean(Y)).^2);
+        rsqred = SSR / SST;
         
         results(h).horizon = h;
-        results(h).beta = regress.Coefficients.Estimate(3);
-        results(h).rsqred = regress.Rsquared.Ordinary;
+        results(h).beta = beta(2);
+        results(h).CI_lower = CI_lower;
+        results(h).CI_upper = CI_upper;
+        results(h).rsqred = rsqred;
     end
     
     horizonPersistRegData = results;
 end
 
+
+%{ 
+function to compute Driscoll-Kraay Standard Errors for a panel regression
+by 
+1. Multiply residuals by the design matrix (X) to capture the influence of
+   predictor variables across time periods.
+2. Sum these values for each time period to create a compressed summary
+   of how errors and predictors interact over time (ht).
+3. Compute the variance-covariance matrix (S_hat) using a weighted sum of 
+   time-lagged error interactions. This accounts for autocorrelation over time.
+4. Use S_hat to adjust standard errors, correcting for both heteroskedasticity 
+   and autocorrelation across time periods.
+%}
+function StdErr = driscollKraay(X, residuals, time)
+    T = length(unique(time));
+    k = size(X, 2);
+    lag = floor(4 * (T/100)^(2/9));
+    
+    Xte = X .* repmat(residuals, 1, k);
+    
+    ht = zeros(T, k);
+    for t = 1:T
+        ht(t,:) = sum(Xte(time == t, :), 1);
+    end
+    
+    S_hat = zeros(k, k);
+    for l = 0:lag
+        Gamma_hat_l = zeros(k, k);
+        for t = l+1:T
+            Gamma_hat_l = Gamma_hat_l + ht(t,:)' * ht(t-l,:);
+        end
+        Gamma_hat_l = Gamma_hat_l / T;
+        S_hat = S_hat + kernelWeight(l, lag) * (Gamma_hat_l + Gamma_hat_l');
+    end
+    
+    X_X_inv = inv(X' * X);
+    V = T * X_X_inv * S_hat * X_X_inv;
+    
+    StdErr = sqrt(diag(V));
+end
+
+
+%{ 
+helper function to compute the Bartlett kernal weight
+this function reduces the weight of a prediction based on from
+how far apart it is from the time being measured [l], 
+as we assume predictions made farther apart are less related.
+%}
+function w = kernelWeight(l, lag)
+    w = 1 - l / (lag + 1);
+end
+
+
+%{
+function to plot persistence across forecasting horizons 
+%}
+function plotHorizonPersistReg(results, filename, showLegend)
+    horizons = [results.horizon] - 1;
+    betas = [results.beta];
+    CI_lowers = [results.CI_lower];
+    CI_uppers = [results.CI_upper];
+    rsquareds = [results.rsqred];
+    
+    figure('Position', [100, 100, 800, 600]);
+
+    ax = axes('Position', [0.15, 0.15, 0.75, 0.75]);
+    hold on;
+    
+    ci_plot = plot([horizons; horizons], [CI_lowers; CI_uppers], 'k-', 'LineWidth', 1.5);
+    for i = 1:length(horizons)
+        plot([horizons(i) - 0.1, horizons(i) + 0.1], [CI_lowers(i), CI_lowers(i)], 'k-', 'LineWidth', 1.5);
+        plot([horizons(i) - 0.1, horizons(i) + 0.1], [CI_uppers(i), CI_uppers(i)], 'k-', 'LineWidth', 1.5);
+    end
+    
+    beta_plot = scatter(horizons, betas, 100, 'o', 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'none', 'LineWidth', 1.5);
+    
+    rsq_line = plot(horizons, rsquareds, 'r-', 'LineWidth', 3);
+    %rsq_scatter = scatter(horizons, rsquareds, 50, 'r', 'filled');
+    
+    xlabel('Forecast Horizon');
+    title('Persistence Across Forecast Horizons');
+
+    ylim([0 1]);
+    yticks(0:0.2:1);
+
+    xlim([-0.5, 4.5]);
+    xticks(0:1:4)
+
+    yGridLines = 0:0.2:1;
+
+    for y = yGridLines
+        plot(xlim, [y, y], 'color', [0.5, 0.5, 0.5], 'LineStyle', '-', 'LineWidth', 0.5);
+    end
+
+    if showLegend
+        legend([ci_plot(1), beta_plot, rsq_line], {'90% confidence interval', 'Estimated coefficient', 'R-squared'}, 'Location', 'best');
+    end
+
+    ax.YLim = [min(CI_lowers) - 0.1, max(CI_uppers) + 0.1];
+    
+    ax.YTick = 0:0.2:1;
+    ax.YTickLabel = {'0', '0.2', '0.4', '0.6', '0.8', '1'};
+    
+    hold off;
+    
+    if ~exist('figures', 'dir')
+        mkdir('figures');
+    end
+    saveas(gcf, fullfile('figures', filename));
+end
+
+
+% analysis functions
 IndivCpiSpfData = cleanIndivCpiSpf("data/Individual_CPI.xlsx");
 IndivCpiSpfRegData = runHorizonPersistReg(IndivCpiSpfData);
 
 
-
+% plotting functions
+plotHorizonPersistReg(IndivCpiSpfRegData, 'figure1panelA', 1);
 

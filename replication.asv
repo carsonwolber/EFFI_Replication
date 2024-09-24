@@ -51,21 +51,87 @@ slope of the coefficient for "persistence", the R^2, and the Driscoll-Kraay
 function horizonPersistRegData = runHorizonPersistReg(data)
     forecastColumns = {'CPI1', 'CPI2', 'CPI3', 'CPI4', 'CPI5', 'CPI6'};
     results = struct();
-    
+
     for h = 1:5
-        X = [ones(size(data, 1), 1), data.(forecastColumns{h})];
         Y = data.(forecastColumns{h+1});
-        regress = fitlm(X,Y);
-        disp(regress.Coefficients);
+        X = [ones(size(data, 1), 1), data.(forecastColumns{h})];
         
-    
+        beta = (X' * X) \ (X' * Y);
+        
+        residuals = Y - X * beta;
+        
+        stdErr = driscollKraay(X, residuals, data.timeIndex);
+        
+        df = 3;
+        % tinv is a built in function for finding the inverse cdf of the
+        % t-statistic (i.e. the critical value)
+        criticalValue = tinv(0.95, df); 
+        CI_lower = beta(2) - criticalValue * stdErr(2);
+        CI_upper = beta(2) + criticalValue * stdErr(2);
+        
+        SST = sum((Y - mean(Y)).^2);
+        SSR = sum((X * beta - mean(Y)).^2);
+        rsqred = SSR / SST;
         
         results(h).horizon = h;
-        results(h).beta = regress.Coefficients.Estimate(2);
-        results(h).rsqred =
+        results(h).beta = beta(2);
+        results(h).CI_lower = CI_lower;
+        results(h).CI_upper = CI_upper;
+        results(h).rsqred = rsqred;
     end
     
     horizonPersistRegData = results;
+end
+
+
+%{ 
+function to compute Driscoll-Kraay Standard Errors for a panel regression
+by 
+1. Multiply residuals by the design matrix (X) to capture the influence of
+   predictor variables across time periods.
+2. Sum these values for each time period to create a compressed summary
+   of how errors and predictors interact over time (ht).
+3. Compute the variance-covariance matrix (S_hat) using a weighted sum of 
+   time-lagged error interactions. This accounts for autocorrelation over time.
+4. Use S_hat to adjust standard errors, correcting for both heteroskedasticity 
+   and autocorrelation across time periods.
+%}
+function StdErr = driscollKraay(X, residuals, time)
+    T = length(unique(time));
+    k = size(X, 2);
+    lag = floor(4 * (T/100)^(2/9));
+    
+    Xte = X .* repmat(residuals, 1, k);
+    
+    ht = zeros(T, k);
+    for t = 1:T
+        ht(t,:) = sum(Xte(time == t, :), 1);
+    end
+    
+    S_hat = zeros(k, k);
+    for l = 0:lag
+        Gamma_hat_l = zeros(k, k);
+        for t = l+1:T
+            Gamma_hat_l = Gamma_hat_l + ht(t,:)' * ht(t-l,:);
+        end
+        Gamma_hat_l = Gamma_hat_l / T;
+        S_hat = S_hat + kernelWeight(l, lag) * (Gamma_hat_l + Gamma_hat_l');
+    end
+    
+    X_X_inv = inv(X' * X);
+    V = T * X_X_inv * S_hat * X_X_inv;
+    
+    StdErr = sqrt(diag(V));
+end
+
+%{ 
+helper function to compute the Bartlett kernal weight
+this function reduces the weight of a prediction based on from
+how far apart it is from the time being measured [l], 
+as we assume predictions made farther apart are less related.
+%}
+function w = kernelWeight(l, lag)
+    w = 1 - l / (lag + 1);
 end
 
 IndivCpiSpfData = cleanIndivCpiSpf("data/Individual_CPI.xlsx");
@@ -74,3 +140,36 @@ IndivCpiSpfRegData = runHorizonPersistReg(IndivCpiSpfData);
 
 
 
+
+
+function plotHorizonPersistReg(results)
+    horizons = [results.horizon]; 
+    betas = [results.beta];    
+    CI_lowers = [results.CI_lower]; 
+    CI_uppers = [results.CI_upper]; 
+    rsquareds = [results.rsqred]; 
+    
+    figure;
+    hold on;
+    
+    for i = 1:length(horizons)
+        plot([horizons(i), horizons(i)], [CI_lowers(i), CI_uppers(i)], 'k-', 'LineWidth', 1.5);
+    end
+    
+    scatter(horizons, betas, 100, 'o', 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'none', 'LineWidth', 1.5);
+
+    plot(horizons, rsquareds, 'r-', 'LineWidth', 2);
+    scatter(horizons, rsquareds, 50, 'r', 'filled');
+    
+    % Add labels and titles
+    xlabel('Forecasting Horizon ');
+    title('Persistence of CPI Forecasts at Different Horizons');
+    
+    % Add legends
+    legend('90% Confidence Interval', 'Beta Coefficients', 'R^2 Values', 'Location', 'best');
+    
+    hold off;
+end
+
+% Call the function with the results struct
+plotHorizonPersistReg(IndivCpiSpfRegData);
