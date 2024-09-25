@@ -32,6 +32,9 @@ function cleanedIndividualCPI = cleanIndivCpiSpf(file)
     timeIndex = (data.YEAR - 1981) * 4 + data.QUARTER - 2;
     data.timeIndex = timeIndex;
     
+    % decade indicator for 1980s-2010s
+    data.decade = floor(data.YEAR / 10) * 10;
+    
     cleanedIndividualCPI = data;
 end
 
@@ -62,12 +65,13 @@ function horizonPersistRegData = runHorizonPersistReg(data)
         
         stdErr = driscollKraay(X, residuals, data.timeIndex);
         
-        df = 3;
-        % tinv is a built in function for finding the inverse cdf of the
-        % t-statistic (i.e. the critical value)
-        criticalValue = tinv(0.95, df); 
+        criticalValue = 2.96;
         CI_lower = beta(2) - criticalValue * stdErr(2);
         CI_upper = beta(2) + criticalValue * stdErr(2);
+
+        fprintf('')
+        disp(CI_upper)
+        disp(CI_lower)
         
         SST = sum((Y - mean(Y)).^2);
         SSR = sum((X * beta - mean(Y)).^2);
@@ -97,79 +101,157 @@ by
    and autocorrelation across time periods.
 %}
 function StdErr = driscollKraay(X, residuals, time)
-    T = length(unique(time));
-    k = size(X, 2);
-    lag = floor(4 * (T/100)^(2/9));
-    
-    Xte = X .* repmat(residuals, 1, k);
-    
+
+    unique_times = unique(time);
+    T = length(unique_times);
+    lag = floor(4 * (T / 100)^(2 / 9));
+   
+
+    N = size(X, 1);     
+    k = size(X, 2);      
+
+  
     ht = zeros(T, k);
-    for t = 1:T
-        ht(t,:) = sum(Xte(time == t, :), 1);
+
+    for idx_t = 1:T
+        t = unique_times(idx_t);
+        idx_time = time == t;
+        X_t = X(idx_time, :);
+        u_t = residuals(idx_time);
+        ht(idx_t, :) = mean(bsxfun(@times, X_t, u_t), 1);
     end
-    
+
     S_hat = zeros(k, k);
+
     for l = 0:lag
-        Gamma_hat_l = zeros(k, k);
-        for t = l+1:T
-            Gamma_hat_l = Gamma_hat_l + ht(t,:)' * ht(t-l,:);
+        Gamma_l = zeros(k, k);
+        for t = (l + 1):T
+            Gamma_l = Gamma_l + (ht(t, :)' * ht(t - l, :));
         end
-        Gamma_hat_l = Gamma_hat_l / T;
-        S_hat = S_hat + kernelWeight(l, lag) * (Gamma_hat_l + Gamma_hat_l');
+        if l == 0
+            S_hat = S_hat + Gamma_l;
+        else
+            weight = 1 - (l / (lag + 1)); 
+            S_hat = S_hat + weight * (Gamma_l + Gamma_l');
+        end
+    end
+
+    S_hat = S_hat / T;
+
+
+    X_X_inv = pinv(X' * X);
+
+
+    V = X_X_inv * S_hat * X_X_inv;
+
+    StdErr = sqrt(diag(V));
+
+  
+    fprintf('N (observations): %d, T (time periods): %d, k (regressors): %d\n', N, T, k);
+    fprintf('Lag length: %d\n', lag);
+    fprintf('Sum of absolute ht values: %e\n', sum(abs(ht(:))));
+    fprintf('Max absolute ht value: %e\n', max(abs(ht(:))));
+    if any(ht(:) ~= 0)
+        fprintf('Min non-zero absolute ht value: %e\n', min(abs(ht(ht ~= 0))));
+    else
+        fprintf('All ht values are zero.\n');
+    end
+    fprintf('S_hat matrix:\n');
+    disp(S_hat);
+    fprintf('X''X matrix:\n');
+    disp(X' * X);
+    fprintf('Variance-Covariance matrix V:\n');
+    disp(V);
+    fprintf('Standard Errors:\n');
+    disp(StdErr);
+end
+
+
+%{
+function to plot persistence across forecasting horizons 
+%}
+function plotHorizonPersistReg(results, filename, showLegend)
+    horizons = [results.horizon] - 1;
+    betas = [results.beta];
+    CI_lowers = [results.CI_lower];
+    CI_uppers = [results.CI_upper];
+    rsquareds = [results.rsqred];
+    
+    figure('Position', [100, 100, 800, 600]);
+
+    ax = axes('Position', [0.15, 0.15, 0.75, 0.75]);
+    hold on;
+    
+    ci_plot = plot([horizons; horizons], [CI_lowers; CI_uppers], 'k-', 'LineWidth', 1.5);
+    for i = 1:length(horizons)
+        plot([horizons(i) - 0.1, horizons(i) + 0.1], [CI_lowers(i), CI_lowers(i)], 'k-', 'LineWidth', 1.5);
+        plot([horizons(i) - 0.1, horizons(i) + 0.1], [CI_uppers(i), CI_uppers(i)], 'k-', 'LineWidth', 1.5);
     end
     
-    X_X_inv = inv(X' * X);
-    V = T * X_X_inv * S_hat * X_X_inv;
+    beta_plot = scatter(horizons, betas, 100, 'o', 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'none', 'LineWidth', 1.5);
     
-    StdErr = sqrt(diag(V));
+    rsq_line = plot(horizons, rsquareds, 'r-', 'LineWidth', 3);
+    %rsq_scatter = scatter(horizons, rsquareds, 50, 'r', 'filled');
+    
+    xlabel('Forecast Horizon');
+    title('Persistence Across Forecast Horizons');
+
+    ylim([0 1]);
+    yticks(0:0.2:1);
+
+    xlim([-0.5, 4.5]);
+    xticks(0:1:4)
+
+    yGridLines = 0:0.2:1;
+
+    for y = yGridLines
+        plot(xlim, [y, y], 'color', [0.5, 0.5, 0.5], 'LineStyle', '-', 'LineWidth', 0.5);
+    end
+
+    if showLegend
+        legend([ci_plot(1), beta_plot, rsq_line], {'90% confidence interval', 'Estimated coefficient', 'R-squared'}, 'Location', 'best');
+    end
+
+    ax.YLim = [min(CI_lowers) - 0.1, max(CI_uppers) + 0.1];
+    
+    ax.YTick = 0:0.2:1;
+    ax.YTickLabel = {'0', '0.2', '0.4', '0.6', '0.8', '1'};
+    
+    hold off;
+    
+    if ~exist('figures', 'dir')
+        mkdir('figures');
+    end
+    saveas(gcf, fullfile('figures', filename));
 end
 
-%{ 
-helper function to compute the Bartlett kernal weight
-this function reduces the weight of a prediction based on from
-how far apart it is from the time being measured [l], 
-as we assume predictions made farther apart are less related.
+
+%{
+helper function to assist with plotting horizon persistance across the
+4 decades from 1980-2010
 %}
-function w = kernelWeight(l, lag)
-    w = 1 - l / (lag + 1);
+function plotHorizonPersistRegByDecade(data, baseName, showLegend)
+    decades = [1980, 1990, 2000, 2010];
+
+    for decade = decades
+        decadeData = data(data.decade == decade, :);
+        decadeResults = runHorizonPersistReg(decadeData);
+        decadeStr = num2str(decade);
+        filename = sprintf('%s_%s', baseName, decadeStr);
+        
+        plotHorizonPersistReg(decadeResults, filename, showLegend);
+
+    end
+
 end
 
+
+% analysis functions
 IndivCpiSpfData = cleanIndivCpiSpf("data/Individual_CPI.xlsx");
 IndivCpiSpfRegData = runHorizonPersistReg(IndivCpiSpfData);
 
 
+% plotting functions
+%plotHorizonPersistReg(IndivCpiSpfRegData, 'figure1panelA', 1);
+plotHorizonPersistRegByDecade(IndivCpiSpfData, 'figure1panelB', 0);
 
-
-
-
-function plotHorizonPersistReg(results)
-    horizons = [results.horizon]; 
-    betas = [results.beta];    
-    CI_lowers = [results.CI_lower]; 
-    CI_uppers = [results.CI_upper]; 
-    rsquareds = [results.rsqred]; 
-    
-    figure;
-    hold on;
-    
-    for i = 1:length(horizons)
-        plot([horizons(i), horizons(i)], [CI_lowers(i), CI_uppers(i)], 'k-', 'LineWidth', 1.5);
-    end
-    
-    scatter(horizons, betas, 100, 'o', 'MarkerEdgeColor', 'k', 'MarkerFaceColor', 'none', 'LineWidth', 1.5);
-
-    plot(horizons, rsquareds, 'r-', 'LineWidth', 2);
-    scatter(horizons, rsquareds, 50, 'r', 'filled');
-    
-    % Add labels and titles
-    xlabel('Forecasting Horizon ');
-    title('Persistence of CPI Forecasts at Different Horizons');
-    
-    % Add legends
-    legend('90% Confidence Interval', 'Beta Coefficients', 'R^2 Values', 'Location', 'best');
-    
-    hold off;
-end
-
-% Call the function with the results struct
-plotHorizonPersistReg(IndivCpiSpfRegData);
