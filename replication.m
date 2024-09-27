@@ -122,7 +122,7 @@ function StdErr = driscollKraay(X, residuals, time)
         Gamma_hat_l = Gamma_hat_l / T;
         weight = kernelWeight(l, lag);
         if l == 0
-            S_hat = S_hat + Gamma_hat_l;  % Only add Gamma_hat_0 once
+            S_hat = S_hat + Gamma_hat_l;
         else
             S_hat = S_hat + weight * (Gamma_hat_l + Gamma_hat_l');
         end
