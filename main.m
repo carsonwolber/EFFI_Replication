@@ -7,6 +7,7 @@ options = {'plot all analyses', ...
            'plot persistence across forecast horizons (figure 1)', ...
            'plot full sample persistence across forecast horizons (figure 1 panel A)', ...
            'plot persistence across forecast horizons by decade (figure 1 panel B)', ...
+           'plot implied long long inflation histrogram', ...
            'exit'};
 
 while true
@@ -35,8 +36,13 @@ while true
         case 4
             disp('ploted figure 1 panel B');
             plotHorizonPersistRegByDecade(IndivCpiSpfData, 'figure1panelB', false);
-            
+
         case 5
+            disp('ploted ILRI');
+            IRLIData = findILRIVars(IndivCpiSpfData);
+            plotILRIHist(IRLIData);
+  
+        case 6
             disp('exited');
             break;
 
