@@ -19,7 +19,7 @@ function plotILRIHist(data)
         % this means the histogram will only distinguish up to the first
         % decimal
         histogram(pi_vals, 'BinWidth', 0.1);
-        title(['ILRI Expectations For h = ', num2str(h)])
+        title(['ILRI Expectations For h = ', num2str(h-1)])
         xlabel('ILRI Rate')
         ylabel('Frequency')
         saveas(gcf, fullfile('figures', filename));
