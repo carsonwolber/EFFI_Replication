@@ -39,15 +39,13 @@ while true
             plotHorizonPersistRegByDecade(IndivCpiSpfData, 'figure1panelB', false);
 
         case 5
-            disp('ploted ILRI Histogram');
+            disp('ploted ILRI');
             IRLIData = findILRIVars(IndivCpiSpfData);
             plotILRIHist(IRLIData);
         
         case 6
-            disp('ploted ILRI Scatter');
-            IRLIData = findILRIVars(IndivCpiSpfData);
-            plotILRIScatter(IRLIData);
-
+            d
+  
         case 7
             disp('exited');
             break;

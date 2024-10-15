@@ -35,7 +35,7 @@ function ILRIData = findILRIVars(data)
                 values very close to 1 like .9993 give very
                 inflated estimates so I set a threshold to .99. 
                 %}
-                if .99 >= beta(2) 
+                if .95 >= beta(2) 
                     alpha_h_i_hat = beta(1);
                     rho_h_i_hat = beta(2);
                     pi_h_i_hat = alpha_h_i_hat / (1 - rho_h_i_hat);
