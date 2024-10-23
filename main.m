@@ -1,6 +1,7 @@
 addpath(genpath('.'));
 
 IndivCpiSpfData = cleanIndivCpiSpf("data/Individual_CPI.xlsx");
+RealCPIData = cleanRealCPI("data/Real_CPI.xls");
 
 
 options = {'plot all analyses', ...
@@ -9,6 +10,7 @@ options = {'plot all analyses', ...
            'plot persistence across forecast horizons by decade (figure 1 panel B)', ...
            'plot implied long run inflation histrogram', ...
            'plot implied long run inflation scatter plot', ...
+           'simulate bias', ...
            'exit'};
 
 while true
@@ -49,6 +51,13 @@ while true
             plotILRIScatter(IRLIData);
 
         case 7
+            disp('simulating bias')
+            RealDataVars = findRealPersistence(RealCPIData);
+            IRLIData = findILRIVars(IndivCpiSpfData);
+            SimulationData = simulateExpectations(RealDataVars);
+
+
+        case 8
             disp('exited');
             break;
 
