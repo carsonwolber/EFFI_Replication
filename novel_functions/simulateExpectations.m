@@ -1,25 +1,44 @@
 function simulate = simulateExpectations(RealDataVars)
-    pi_hats = zeros(1000, 1);
-
-    for sim = 1:1000
-        pi_t = zeros(50, 1);
-        pi_t(1) = RealDataVars.pi;
+    trueRho = RealDataVars.rho;
+    truePi = RealDataVars.pi;
+    trueSigma = RealDataVars.sigma;
+    
+    simulations = struct('alpha', {}, 'rho', {}, 'pi', {});
+    
+    for i = 1:1000
+        simData = zeros(50, 1);
+        simData(1) = truePi;
+        
         for t = 2:50
-            e_t = RealDataVars.sigma * randn();
-            pi_t(t) = (1 - RealDataVars.rho) * RealDataVars.pi + RealDataVars.rho * pi_t(t - 1) + e_t;
+            simData(t) = (1-trueRho)*truePi + trueRho*simData(t-1) + ...
+                         normrnd(0, trueSigma);
         end
-
-        Y = pi_t(2:end);
-        X = [ones(49, 1), pi_t(1:end - 1)];
-
-        beta = regress(Y, X);
-        alpha_hat = beta(1);
-        rho_hat = beta(2);
-        pi_hats(sim) = alpha_hat / (1 - rho_hat);
-
+        
+        Y = simData(2:end);
+        X = simData(1:end-1);
+        augmented_X = [ones(length(X), 1), X];
+        beta = regress(Y, augmented_X);
+        
+        simulations(i).alpha = beta(1);
+        simulations(i).rho = beta(2);
+        simulations(i).pi = beta(1)/(1-beta(2));
     end
-
-    simulate.mean_pi_hat = mean(pi_hats);
-    simulate.true_pi = RealDataVars.pi;
-    simulate.bias = simulate.mean_pi_hat - RealDataVars.pi;
+    
+    summary = struct();
+    summary.means = struct();
+    summary.means.alpha = mean([simulations.alpha]);
+    summary.means.rho = mean([simulations.rho]);
+    summary.means.pi = mean([simulations.pi]);
+    
+    summary.std = struct();
+    summary.std.alpha = std([simulations.alpha]);
+    summary.std.rho = std([simulations.rho]);
+    summary.std.pi = std([simulations.pi]);
+    
+    summary.bias = struct();
+    summary.bias.pi = summary.means.pi - truePi;
+    
+    simulate = struct();
+    simulate.simulations = simulations;
+    simulate.summary = summary;
 end
