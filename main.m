@@ -1,8 +1,6 @@
 addpath(genpath('.'));
 
 IndivCpiSpfData = cleanIndivCpiSpf("data/Individual_CPI.xlsx");
-RealCPIData = cleanRealCPI("data/Real_CPI.xls");
-
 
 options = {'plot all analyses', ...
            'plot persistence across forecast horizons (figure 1)', ...
@@ -52,10 +50,9 @@ while true
 
         case 7
             disp('simulating bias')
+            RealCPIData = cleanRealCPI("data/Vintage_CPI.xlsx");
             RealDataVars = findRealPersistence(RealCPIData);
-            IRLIData = findILRIVars(IndivCpiSpfData);
             SimulationData = simulateExpectations(RealDataVars);
-
 
         case 8
             disp('exited');
