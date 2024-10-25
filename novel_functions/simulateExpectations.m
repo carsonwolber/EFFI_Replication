@@ -33,10 +33,11 @@ function simulate = simulateExpectations(RealDataVars)
     summary.std = struct();
     summary.std.alpha = std([simulations.alpha]);
     summary.std.rho = std([simulations.rho]);
-    summary.std.pi = std([simulations.pi]);
+    summary.std.pi = std([simulations.pi]); 
     
     summary.bias = struct();
-    summary.bias.pi = summary.means.pi - truePi;
+    summary.bias.rho = summary.means.rho - trueRho;
+    summary.bias.pi = summary.means.pi - truePi; 
     
     simulate = struct();
     simulate.simulations = simulations;
