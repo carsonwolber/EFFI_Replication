@@ -1,7 +1,7 @@
 %{
 function to plot persistence across forecasting horizons 
 %}
-function plotHorizonPersistReg(results, filename, showLegend)
+function plotHorizonPersistReg(results, filename, showLegend, variable)
     horizons = [results.horizon] - 1;
     betas = [results.beta];
     CI_lowers = [results.CI_lower];
@@ -23,7 +23,7 @@ function plotHorizonPersistReg(results, filename, showLegend)
     rsq_line = plot(horizons, rsquareds, 'r-', 'LineWidth', 3);
     
     xlabel('Forecast Horizon');
-    title('Persistence Across Forecast Horizons');
+    title(['Persistence Across Forecast Horizons ' variable]);
     ylim([0 1]);
     yticks(0:0.2:1);
     xlim([-0.5, 4.5]);

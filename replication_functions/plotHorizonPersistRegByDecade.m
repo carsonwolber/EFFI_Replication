@@ -2,7 +2,7 @@
 helper function to assist with plotting horizon persistance across the
 4 decades from 1980-2010
 %}
-function plotHorizonPersistRegByDecade(data, baseName, showLegend)
+function plotHorizonPersistRegByDecade(data, baseName, showLegend, variable, forecastColumns)
     decades = [1980, 1990, 2000, 2010];
 
     for decade = decades
@@ -19,10 +19,10 @@ function plotHorizonPersistRegByDecade(data, baseName, showLegend)
         timeIndexMapping = containers.Map(datenum(allQuarters), 1:length(allQuarters));
         decadeData.timeIndex = arrayfun(@(x) timeIndexMapping(datenum(x)), decadeData.Date);
 
-        decadeResults = runHorizonPersistReg(decadeData);
+        decadeResults = runHorizonPersistReg(decadeData, forecastColumns);
         decadeStr = num2str(decade);
         filename = sprintf('%s_%s', baseName, decadeStr);
 
-        plotHorizonPersistReg(decadeResults, filename, showLegend);
+        plotHorizonPersistReg(decadeResults, filename, showLegend, variable);
     end
 end

@@ -11,8 +11,7 @@ This function returns a struct containing data on the
 slope of the coefficient for "persistence", the R^2, and the Driscoll-Kraay
 90% confidence interval thresholds, for each h. 
 %}
-function horizonPersistRegData = runHorizonPersistReg(data)
-    forecastColumns = {'CPI1', 'CPI2', 'CPI3', 'CPI4', 'CPI5', 'CPI6'};
+function horizonPersistRegData = runHorizonPersistReg(data, forecastColumns)
     results = struct();
 
     for h = 1:5
